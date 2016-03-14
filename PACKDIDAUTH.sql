@@ -1,0 +1,162 @@
+-- PACKDIDAUTH specification
+CREATE OR REPLACE PACKAGE PACKDIDAUTH AS
+  --Проверка залогинен ли юзер и логирование действий
+  PROCEDURE WARN (P_SOURCE IN VARCHAR2, P_ACTION IN VARCHAR2);
+  -- Авторизацию по логину и паролю, получаем сессию в таблице или исключение e_auth_failed
+	PROCEDURE AuthByPassword (p_userName IN ACCOUNT.LOGIN%TYPE, p_password IN ACCOUNT.PASSWORD%TYPE);
+	-- Авторизован ли кто-нить в текущей сессии
+	FUNCTION SessionIsAuthorized RETURN BOOLEAN;
+	-- Получаем информацию о пользователе в текущей сессии
+	FUNCTION SessionGetUser RETURN ACCOUNT%ROWTYPE;
+	-- "Закрываем" сессию
+	PROCEDURE SessionClose;
+	-- Проверка доступа по названию метода
+	PROCEDURE CheckAccess(p_methodName IN METHOD_ACCESS.METHOD_NAME%TYPE);
+	-- Добавление пользователя в систему
+	PROCEDURE AddUser(P_LOGIN IN ACCOUNT.LOGIN%TYPE, P_PASSWORD IN ACCOUNT.PASSWORD%TYPE, P_ROLE_ID IN ACCOUNT.ROLE_ID%TYPE);
+	-- Изменение пользователя
+	PROCEDURE ModifyUser(ACC_ID IN ACCOUNT.ID%TYPE, P_LOGIN IN ACCOUNT.LOGIN%TYPE, P_PASSWORD IN ACCOUNT.PASSWORD%TYPE, P_ROLE_ID IN ACCOUNT.ROLE_ID%TYPE);
+	-- Удаление пользователя из системы
+	PROCEDURE DeleteUser(ACC_ID IN ACCOUNT.ID%TYPE);
+	-- Разрешить доступ к заданному методу с заданной ролью
+	PROCEDURE AllowAccess(p_name IN METHOD_ACCESS.METHOD_NAME%TYPE, p_role IN METHOD_ACCESS.ROLE_ID%TYPE);
+	-- Запретить доступ к заданному методу с заданной ролью
+	PROCEDURE DisallowAccess(p_access IN METHOD_ACCESS.ID%TYPE);
+END PACKDIDAUTH;
+/
+CREATE OR REPLACE PACKAGE BODY PACKDIDAUTH AS
+
+  PROCEDURE WARN (P_SOURCE IN VARCHAR2, P_ACTION IN VARCHAR2)
+	AS
+		V_USER ACCOUNT%ROWTYPE;
+	BEGIN
+		IF NOT PACKDIDAUTH.SessionIsAuthorized THEN
+			RETURN;
+		END IF;
+		V_USER := PACKDIDAUTH.SessionGetUser;
+		INSERT INTO USERS_LOG (ID, USER_ID, SOURCE, ACTION, ACTION_TIME)
+		VALUES (USERS_LOG_SEQ.NEXTVAL, V_USER.ID, P_SOURCE, P_ACTION, SYSDATE);
+	END;
+
+  PROCEDURE AuthByPassword (P_USERNAME IN ACCOUNT.LOGIN%TYPE, P_PASSWORD IN ACCOUNT.PASSWORD%TYPE)
+	AS
+		V_USER ACCOUNT%ROWTYPE;
+		e_auth_failed	EXCEPTION;
+	BEGIN
+		SELECT *
+		INTO V_USER
+		FROM ACCOUNT
+		WHERE
+			LOGIN = p_userName AND
+			PASSWORD = p_password;
+    
+    UPDATE ACCOUNT set LOGIN_TIME = SYSDATE where LOGIN = P_USERNAME;
+    UPDATE ACCOUNT set SESSION_ID = SYS_CONTEXT('userenv', 'sessionid') where LOGIN = P_USERNAME;
+
+		INSERT INTO USERS_LOGGED (ID, SESSION_ID, USER_ID, USERNAME, USER_ROLE, ACTION_TIME)
+		VALUES (USERS_LOGGED_SEQ.NEXTVAL, SYS_CONTEXT('userenv', 'sessionid'), v_user.ID, v_user.LOGIN, V_USER.ROLE_ID, SYSDATE);
+
+		PACKDIDAUTH.WARN('TABLES.USERS_LOGGED', 'Session open');
+	EXCEPTION
+	WHEN NO_DATA_FOUND THEN
+		RAISE e_auth_failed;
+	END;
+
+  FUNCTION SessionIsAuthorized RETURN BOOLEAN
+	AS
+		v_count NUMBER(3);
+	BEGIN
+		SELECT
+			COUNT(*)
+			INTO v_count
+		FROM USERS_LOGGED
+		WHERE USERS_LOGGED.SESSION_ID = SYS_CONTEXT('userenv', 'sessionid');
+
+		RETURN NOT (v_count = 0);
+	END;
+
+  FUNCTION SessionGetUser RETURN ACCOUNT%ROWTYPE
+	AS
+		v_user_logged USERS_LOGGED%ROWTYPE;
+		v_result ACCOUNT%ROWTYPE;
+	BEGIN
+		SELECT *
+			INTO v_user_logged
+		FROM USERS_LOGGED
+		WHERE SESSION_ID = SYS_CONTEXT('userenv', 'sessionid');
+		v_result.ID := v_user_logged.USER_ID;
+		v_result.LOGIN := v_user_logged.USERNAME;
+		v_result.ROLE_ID := v_user_logged.USER_ROLE;
+		RETURN v_result;
+	END;
+
+  PROCEDURE SessionClose
+	AS
+	BEGIN
+		IF SessionIsAuthorized THEN
+			PACKDIDAUTH.WARN('TABLES.USERS_LOGGED', 'Session close');
+      UPDATE ACCOUNT set LOGOUT_TIME = SYSDATE where SESSION_ID = SYS_CONTEXT('userenv', 'sessionid');
+			DELETE FROM USERS_LOGGED
+			WHERE SESSION_ID = SYS_CONTEXT('userenv', 'sessionid');
+		END IF;
+	END;
+
+  PROCEDURE CheckAccess(p_methodName IN METHOD_ACCESS.METHOD_NAME%TYPE)
+	AS
+		e_access_denied	EXCEPTION;
+		v_user ACCOUNT%ROWTYPE;
+	BEGIN
+		IF NOT SessionIsAuthorized THEN
+			RAISE e_access_denied;
+		END IF;
+		v_user := SessionGetUser;
+		FOR t_row IN (SELECT * FROM METHOD_ACCESS WHERE METHOD_NAME = p_methodName)
+		LOOP
+			IF t_row.ROLE_ID = v_user.ROLE_ID THEN
+				PACKDIDAUTH.WARN(p_methodName, 'Access granted');
+				RETURN;
+			END IF;
+		END LOOP;
+		PACKDIDAUTH.WARN(p_methodName, 'Access denied');
+		RAISE e_access_denied;
+	END;
+
+  PROCEDURE AddUser(P_LOGIN IN ACCOUNT.LOGIN%TYPE, P_PASSWORD IN ACCOUNT.PASSWORD%TYPE, P_ROLE_ID IN ACCOUNT.ROLE_ID%TYPE)
+	AS
+	BEGIN
+		CheckAccess('AddUser');
+		INSERT INTO ACCOUNT (ID, SESSION_ID, LOGIN, PASSWORD, LOGIN_TIME, LOGOUT_TIME, ROLE_ID)
+		VALUES (ACCOUNT_ID_SEQ.NEXTVAL, SYS_CONTEXT('userenv', 'sessionid'), P_LOGIN, P_PASSWORD, SYSDATE, SYSDATE, P_ROLE_ID);
+	END;
+
+  PROCEDURE ModifyUser(ACC_ID IN ACCOUNT.ID%TYPE, P_LOGIN IN ACCOUNT.LOGIN%TYPE, P_PASSWORD IN ACCOUNT.PASSWORD%TYPE, P_ROLE_ID IN ACCOUNT.ROLE_ID%TYPE)
+	AS
+	BEGIN
+		CheckAccess('ModifyUser');
+		UPDATE ACCOUNT a SET PASSWORD = P_PASSWORD, ROLE_ID = P_ROLE_ID, LOGIN = P_LOGIN
+		WHERE ID = ACC_ID;
+	END;
+
+  PROCEDURE DeleteUser(ACC_ID IN ACCOUNT.ID%TYPE)
+	AS
+	BEGIN
+		CheckAccess('DeleteUser');
+		DELETE FROM ACCOUNT WHERE ID = ACC_ID;
+	END;
+
+	PROCEDURE AllowAccess(p_name IN METHOD_ACCESS.METHOD_NAME%TYPE, p_role IN METHOD_ACCESS.ROLE_ID%TYPE)
+	AS
+	BEGIN
+		CheckAccess('AllowAccess');
+		INSERT INTO METHOD_ACCESS(ID, METHOD_NAME, ROLE_ID)
+		VALUES (METHOD_ACCESS_SEQ.NEXTVAL, p_name, p_role);
+	END;
+
+  PROCEDURE DisallowAccess(p_access IN METHOD_ACCESS.ID%TYPE)
+	AS
+	BEGIN
+		CheckAccess('DisallowAccess');
+		DELETE FROM METHOD_ACCESS WHERE ID = p_access;
+	END;
+
+END PACKDIDAUTH;

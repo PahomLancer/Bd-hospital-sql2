@@ -1,0 +1,266 @@
+CREATE TABLE svoistvolabor (
+	ID number(7) NOT NULL,
+	Profil varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE labor (
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	Svoistvo_ID number(7) NOT NULL REFERENCES svoistvolabor(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE hospital (
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	Labor_ID number(7) NOT NULL REFERENCES labor(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE korpus (
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	Hospital_ID number(7) NOT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE otdelenie(
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	Korpus_ID number(7) NOT NULL REFERENCES korpus(id) ON DELETE CASCADE,
+	Boleznie varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE palata (
+	ID number(7) NOT NULL,
+	Otdelenie_ID number(7) NOT NULL REFERENCES otdelenie(id) ON DELETE CASCADE,
+	Name varchar(32) NOT NULL,
+	Kolvo_koek number(7) NOT NULL,
+	Kolvo_sv_koek number(7) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE poliklinika (
+	ID number(7) NOT NULL,
+	Hospital_ID number(7) DEFAULT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	Labor_ID number(7) DEFAULT NULL REFERENCES labor(id) ON DELETE CASCADE,
+	Name varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE kabinet (
+	ID number(7) NOT NULL,
+	Klinika_ID number(7) NOT NULL REFERENCES poliklinika(id) ON DELETE CASCADE,
+	Name varchar(32) NOT NULL,
+	Posecheniya number(7) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE obspersonal (
+	ID number(7) NOT NULL,
+	FullName varchar(32) NOT NULL,
+	Hospital_ID number(7) NOT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	Poliklinika_ID number(7) NOT NULL REFERENCES poliklinika(id) ON DELETE CASCADE,
+	Profession varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE betterscince(
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE scince (
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	BetterScince_ID number(7) DEFAULT NULL REFERENCES betterscince(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE profession (
+	ID number(7) NOT NULL,
+	Name varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE atributprofessi (
+	ID number(7) NOT NULL,
+	ID_Categor number(7) NOT NULL REFERENCES profession(id) ON DELETE CASCADE,
+	Atribut varchar(32) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE vrachi(
+	ID number(7) NOT NULL,
+	FullName varchar(32) NOT NULL,
+	Profession_ID number(7) DEFAULT NULL REFERENCES profession(id) ON DELETE CASCADE,
+	Hospital_ID number(7) DEFAULT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	Poliklinika_ID number(7) DEFAULT NULL REFERENCES poliklinika(id) ON DELETE CASCADE,
+ 	Science_ID number(7) DEFAULT NULL REFERENCES scince(id) ON DELETE CASCADE,
+	Stag number(7) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE atributvracha (
+	ID number(7) NOT NULL,
+	ID_AtributCategor number(7) NOT NULL REFERENCES atributprofessi(id) ON DELETE CASCADE,
+	ID_Vrach number(7) NOT NULL REFERENCES vrachi(id) ON DELETE CASCADE,
+	Znach number(30) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE consalt (
+	Conslt_ID number(7) NOT NULL,
+	Hospital_ID number(7) NOT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	Klinika_ID number(7) NOT NULL REFERENCES poliklinika(id) ON DELETE CASCADE,
+	Vrach_ID number(7) NOT NULL REFERENCES vrachi(id) ON DELETE CASCADE,
+	PRIMARY KEY (Conslt_ID)
+);
+CREATE TABLE patient (
+	ID number(7) NOT NULL,
+	Poliklinik_ID number(7) NOT NULL REFERENCES poliklinika(id) ON DELETE CASCADE,
+	Name varchar(32) NOT NULL,
+	start_date date NOT NULL,
+	end_date date NOT NULL,
+	sost varchar(32) NOT NULL,
+	temp number(7) NOT NULL,
+	palata_id number(7) NOT NULL REFERENCES palata(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE napravlenie (
+	ID number(7) NOT NULL,
+	Patient_ID number(7) NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+	Hospital_ID number(7) NOT NULL REFERENCES hospital(id) ON DELETE CASCADE,
+	IstoriyBolezniey varchar(256) NOT NULL,
+	IstoryaNapravleniy varchar(256) NOT NULL,
+	IstoryaOperz varchar(256) NOT NULL,
+	PRIMARY KEY (ID)
+);
+CREATE TABLE rabotavrachaspatient (
+	ID number(7) NOT NULL,
+	Patient_ID number(7) NOT NULL REFERENCES patient(id) ON DELETE CASCADE,
+	Vrach_ID number(7) NOT NULL REFERENCES vrachi(id) ON DELETE CASCADE,
+	PRIMARY KEY (ID)
+);
+
+CREATE SEQUENCE svoistvolabor_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE labor_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE hospital_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE korpus_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE otdelenie_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE palata_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE poliklinika_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE kabinet_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE obspersonal_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE betterscince_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE scince_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE profession_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE atributprofessi_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE vrachi_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE atributvracha_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE consalt_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE patient_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE napravlenie_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE;
+
+CREATE SEQUENCE rabotavrachaspatient_id_seq
+INCREMENT BY 1
+START WITH 1
+MAXVALUE 1000
+NOCYCLE
+NOCACHE
+/
